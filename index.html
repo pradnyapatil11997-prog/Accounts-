@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Officedeck Technologies &middot; Daily Purchase Manifest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root{
+  /* iOS 26 "Liquid Glass" palette */
+  --bg-a:#eef2fb;
+  --bg-b:#e7ecfb;
+  --glass:rgba(255,255,255,0.62);
+  --glass-strong:rgba(255,255,255,0.78);
+  --glass-border:rgba(255,255,255,0.9);
+  --glass-shadow:0 10px 40px rgba(30,40,80,0.10), 0 1px 0 rgba(255,255,255,0.6) inset;
+  --hairline:rgba(60,60,67,0.12);
+  --hairline-soft:rgba(60,60,67,0.08);
+
+  --blue:#0A84FF;
+  --green:#30D158;
+  --orange:#FF9F0A;
+  --pink:#FF375F;
+  --purple:#BF5AF2;
+  --teal:#40C8E0;
+  --indigo:#5E5CE6;
+  --red:#FF453A;
+  --grey:#8E8E93;
+
+  --text-hi:#1C1C1E;
+  --text-lo:#636366;
+  --text-dim:#8E8E93;
+
+  --font-display:'Inter',-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;
+  --font-body:'Inter',-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,'SF Mono',monospace;
+
+  --r-xl:28px;
+  --r-lg:20px;
+  --r-md:14px;
+  --r-sm:10px;
+  --r-pill:999px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  background:
+    radial-gradient(1100px 700px at 8% -10%, rgba(94,92,230,0.16), transparent 60%),
+    radial-gradient(1000px 650px at 100% 0%, rgba(10,132,255,0.14), transparent 55%),
+    radial-gradient(900px 700px at 50% 110%, rgba(255,159,10,0.10), transparent 55%),
+    linear-gradient(180deg, var(--bg-a), var(--bg-b));
+  background-attachment:fixed;
+  color:var(--text-hi);
+  font-family:var(--font-body);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+
+/* floating ambient orbs for the liquid-glass backdrop */
+.bg-orbs{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none;}
+.orb{position:absolute;border-radius:50%;filter:blur(60px);opacity:.55;}
+.orb-a{width:420px;height:420px;background:radial-gradient(circle at 30% 30%, rgba(10,132,255,.35), transparent 70%);top:-120px;left:-100px;}
+.orb-b{width:380px;height:380px;background:radial-gradient(circle at 30% 30%, rgba(255,159,10,.30), transparent 70%);bottom:-140px;right:-80px;}
+.orb-c{width:320px;height:320px;background:radial-gradient(circle at 30% 30%, rgba(191,90,242,.22), transparent 70%);top:40%;right:20%;}
+
+/* ---------- app shell ---------- */
+.app-shell{position:relative;z-index:1;display:flex;align-items:flex-start;max-width:1480px;margin:0 auto;padding:22px 22px 60px;gap:22px;}
+
+/* ---------- sidebar / filters ---------- */
+.sidebar{
+  width:272px;flex:0 0 272px;position:sticky;top:22px;
+  display:flex;flex-direction:column;gap:16px;
+  max-height:calc(100vh - 44px);
+}
+.glass{
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(28px) saturate(180%);
+  backdrop-filter:blur(28px) saturate(180%);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-shadow);
+  border-radius:var(--r-xl);
+}
+.brand-card{padding:18px 18px 16px;display:flex;align-items:center;gap:12px;}
+.brand-logo{width:44px;height:auto;flex-shrink:0;display:block;}
+.brand-name{font-family:var(--font-display);font-weight:700;font-size:13.5px;line-height:1.25;color:var(--text-hi);}
+.brand-name span{display:block;font-weight:500;font-size:11.5px;color:var(--text-lo);margin-top:1px;}
+
+.filter-card{padding:18px;display:flex;flex-direction:column;gap:18px;overflow-y:auto;}
+.filter-block{display:flex;flex-direction:column;gap:9px;}
+.filter-block > label{font-size:11.5px;font-weight:600;color:var(--text-lo);text-transform:uppercase;letter-spacing:.4px;padding-left:2px;}
+.chip-col{display:flex;flex-direction:column;gap:7px;}
+.chip-col.wrap{flex-direction:row;flex-wrap:wrap;}
+.chip{
+  font-size:12.5px;font-weight:600;padding:9px 14px;border-radius:var(--r-pill);
+  border:1px solid var(--hairline);
+  background:rgba(255,255,255,0.55);
+  color:var(--text-lo);cursor:pointer;user-select:none;
+  transition:all .15s ease;
+  text-align:left;
+}
+.chip:hover:not(.active){background:rgba(255,255,255,0.85);color:var(--text-hi);border-color:rgba(60,60,67,0.18);}
+.chip.active{
+  background:linear-gradient(135deg, var(--blue), var(--indigo));
+  border-color:transparent;color:#fff;
+  box-shadow:0 4px 14px rgba(10,132,255,0.35);
+}
+#catChips .chip{display:flex;align-items:center;gap:8px;}
+.chip-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+.filter-block select, .filter-block input[type="text"]{
+  background:rgba(255,255,255,0.65);
+  border:1px solid var(--hairline);
+  color:var(--text-hi);
+  border-radius:var(--r-md);
+  padding:10px 12px;
+  font-family:var(--font-body);font-size:13px;
+  outline:none;
+}
+.filter-block select:focus, .filter-block input[type="text"]:focus{
+  border-color:var(--blue);box-shadow:0 0 0 3px rgba(10,132,255,0.15);
+}
+.filter-block select[multiple]{min-height:110px;}
+.filter-block input::placeholder{color:var(--text-dim);}
+
+.filter-actions{display:flex;gap:8px;}
+.btn-clear{
+  font-size:12.5px;font-weight:600;color:var(--blue);background:rgba(10,132,255,0.10);
+  border:1px solid rgba(10,132,255,0.18);border-radius:var(--r-pill);
+  padding:9px 0;cursor:pointer;flex:1;
+}
+.btn-clear:hover{background:rgba(10,132,255,0.18);}
+.btn-apply{
+  font-size:12.5px;font-weight:700;color:#fff;
+  background:linear-gradient(135deg, var(--blue), var(--indigo));
+  border:1px solid transparent;border-radius:var(--r-pill);
+  padding:9px 0;cursor:pointer;flex:1;
+  box-shadow:0 4px 14px rgba(10,132,255,0.30);
+  transition:box-shadow .15s ease, transform .12s ease;
+}
+.btn-apply:hover{box-shadow:0 6px 18px rgba(10,132,255,0.42);}
+.btn-apply:active{transform:scale(.97);}
+
+.sync-card{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.sync-info{font-family:var(--font-mono);font-size:11px;color:var(--text-lo);}
+.sync-info .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px;box-shadow:0 0 6px var(--green);}
+.sync-info .dot.stale{background:var(--orange);box-shadow:0 0 6px var(--orange);}
+.sync-time{color:var(--text-dim);margin-top:2px;}
+.btn{
+  font-family:var(--font-body);font-weight:700;font-size:12.5px;
+  background:linear-gradient(135deg, var(--blue), var(--indigo));color:#fff;border:none;border-radius:var(--r-pill);
+  padding:10px 16px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
+  box-shadow:0 4px 14px rgba(10,132,255,0.35);
+  transition:transform .12s ease, box-shadow .15s ease;
+}
+.btn:hover{box-shadow:0 6px 18px rgba(10,132,255,0.45);}
+.btn:active{transform:scale(.96);}
+.btn svg{width:13px;height:13px;}
+.spin{animation:spin 0.9s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ---------- main column ---------- */
+.main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:22px;}
+
+.topbar{
+  display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:20px 26px;
+}
+h1{
+  font-family:var(--font-display);font-weight:800;font-size:25px;letter-spacing:-.3px;margin:0;color:var(--text-hi);
+}
+.subtitle{color:var(--text-lo);font-size:12.5px;margin-top:3px;}
+
+/* ---------- KPI tiles ---------- */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
+.kpi-tag{
+  position:relative;padding:16px 16px 15px;
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid var(--glass-border);border-radius:var(--r-lg);box-shadow:var(--glass-shadow);
+  overflow:hidden;
+}
+.kpi-tag::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg, var(--blue), var(--indigo));
+}
+.kpi-tag.accent-teal::before{background:linear-gradient(90deg, var(--teal), var(--green));}
+.kpi-tag.accent-amber::before{background:linear-gradient(90deg, var(--orange), var(--pink));}
+.kpi-tag.accent-slate::before{background:linear-gradient(90deg, var(--grey), #B0B0B6);}
+.kpi-label{font-size:11px;color:var(--text-lo);letter-spacing:.1px;margin-bottom:7px;font-weight:600;}
+.kpi-value{font-family:var(--font-mono);font-weight:700;font-size:21px;color:var(--text-hi);}
+.kpi-sub{font-size:11px;color:var(--text-dim);margin-top:4px;}
+
+/* ---------- section framing ---------- */
+.section{display:flex;flex-direction:column;gap:0;}
+.section-head{
+  display:flex;justify-content:space-between;align-items:baseline;
+  padding:0 6px 12px;flex-wrap:wrap;gap:8px;
+}
+.section-head h2{font-family:var(--font-display);font-weight:700;font-size:16px;margin:0;color:var(--text-hi);}
+.section-head .hint{font-size:11.5px;color:var(--text-dim);}
+.panel{
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-shadow);
+  border-radius:var(--r-xl);
+  padding:20px;
+}
+
+/* ---------- charts ---------- */
+.chart-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:20px;}
+.chart-box{position:relative;height:270px;}
+.legend-list{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.legend-item{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;}
+.legend-item .l-left{display:flex;align-items:center;gap:8px;color:var(--text-lo);font-weight:500;}
+.legend-swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+.legend-item .l-val{font-family:var(--font-mono);color:var(--text-hi);font-weight:600;}
+
+/* ---------- tables ---------- */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{
+  text-align:left;font-size:10.5px;color:var(--text-lo);font-weight:700;text-transform:uppercase;letter-spacing:.3px;
+  padding:10px 12px;border-bottom:1px solid var(--hairline);cursor:pointer;
+  white-space:nowrap;user-select:none;
+}
+thead th:hover{color:var(--text-hi);}
+thead th .arrow{opacity:.4;font-size:10px;margin-left:3px;}
+thead th.sorted .arrow{opacity:1;color:var(--blue);}
+tbody td{padding:11px 12px;border-bottom:1px solid var(--hairline-soft);color:var(--text-hi);white-space:nowrap;}
+tbody tr{transition:background .12s ease;}
+tbody tr:hover{background:rgba(10,132,255,0.06);}
+td.num,th.num{text-align:right;font-family:var(--font-mono);}
+td.name{white-space:normal;max-width:280px;font-weight:500;}
+.tag-cat{
+  display:inline-block;font-size:10.5px;padding:3px 10px;border-radius:var(--r-pill);font-weight:700;
+}
+.pos{color:var(--green);}
+.neg{color:var(--red);}
+.table-scroll{overflow-x:auto;}
+.table-search{
+  background:rgba(255,255,255,0.65);border:1px solid var(--hairline);color:var(--text-hi);
+  border-radius:var(--r-pill);padding:9px 16px;font-size:13px;width:240px;margin-bottom:14px;
+  font-family:var(--font-body);outline:none;
+}
+.table-search:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(10,132,255,0.15);}
+.table-search::placeholder{color:var(--text-dim);}
+.row-count{font-size:11.5px;color:var(--text-dim);margin-top:10px;}
+
+/* ---------- AP empty state ---------- */
+.empty-note{
+  border:1px dashed var(--hairline);border-radius:var(--r-md);padding:14px 16px;
+  color:var(--text-lo);font-size:12.5px;margin-top:14px;background:rgba(255,255,255,0.4);
+}
+.empty-note code{
+  background:rgba(255,255,255,0.7);border:1px solid var(--hairline);border-radius:5px;padding:1px 6px;
+  font-family:var(--font-mono);color:var(--indigo);
+}
+
+/* ---------- footer ---------- */
+footer{padding:20px 26px 4px;color:var(--text-dim);font-size:12px;}
+footer h3{font-family:var(--font-display);font-weight:700;font-size:13.5px;color:var(--text-lo);margin:0 0 8px;}
+footer ol{margin:0 0 16px;padding-left:20px;}
+footer li{margin-bottom:5px;}
+footer code{background:rgba(255,255,255,0.6);border:1px solid var(--hairline);border-radius:5px;padding:1px 6px;font-family:var(--font-mono);color:var(--indigo);}
+.foot-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;}
+
+@media (max-width:980px){
+  .app-shell{flex-direction:column;}
+  .sidebar{width:100%;flex:none;position:relative;top:0;max-height:none;}
+  .filter-card{flex-direction:row;flex-wrap:wrap;}
+  .filter-block{flex:1 1 180px;}
+}
+@media (max-width:900px){
+  .kpi-row{grid-template-columns:repeat(2,1fr);}
+  .chart-grid{grid-template-columns:1fr;}
+  .foot-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+
+<body>
+<div class="bg-orbs"><div class="orb orb-a"></div><div class="orb orb-b"></div><div class="orb orb-c"></div></div>
+
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="glass brand-card">
+      <img class="brand-logo" alt="pack8" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4UAAAGTCAIAAAAQoiBYAAAQAElEQVR4AeydB5wTVRfFZ5LtjS30uiJIR0BABRFpFoqgNJEuqPTee6/Si4BSRVSUolQRFRQpoiDSO9LZZXfZXpN8Zze6H2xLm5lMkpPfM05m3rv3vv+beXPmvmzQGPgiARIgARIgARIgARIgAfsR0Ah8kQAJkAAJKEGAPkiABEiABHImQD2aMxfuJQESIAESIAESIAESUIaA1HpUmajphQRIgARIgARIgARIwFkIUI86y0iyHyRAAq5GgP0lARIgAWchQD3qLCPJfpAACZAACZAACZCAYxJQux51TKqMmgRIgARIgARIgARIwFwC1KPmkmI9EiABEnBuAuwdCZAACdiLAPWovcjTLwmQAAmQAAmQAAmQQDoBV9Oj6X3mfyRAAiRAAiRAAiRAAuohQD2qnrFgJCRAAiTgTATYFxIgARIwlwD1qLmkWI8ESIAESIAESIAESEAOAtSjtlFlaxIgARIgARIgARIgAdsIUI/axo+tSYAESIAElCFALyRAAs5LgHrUeceWPSMBEiABEiABEiABRyBAPaquUWI0JEACJEACJEACJOBqBKhHXW3E2V8SIAESIIF0AvyPBEhAPQSoR9UzFoyEBEiABEiABEiABFyRAPWoc486e0cCJEACJEACJEACaidAPar2EWJ8JEACJEACjkCAMZIACVhPgHrUenZsSQIkQAIkQAIkQAIkYDsB6lHbGbqSBfaVBEiABEiABEiABKQmQD0qNVHaIwESIAESIAHbCdACCbgSAepRVxpt9pUESIAESIAESIAE1EeAelR9Y+JKEbGvJEACJEACJEACJEA9ynOABEiABEiABJyfAHtIAmomQD2q5tFhbCRAAiRAAiRAAiTg/ASoR51/jF2ph+wrCZAACZAACZCA4xGgHnW8MWPEJEACJEACJGBvAvRPAlISoB6VkiZtkQAJkAAJkAAJkAAJWEqAetRSYqzvSgTYVxIgARIgARIgAfkJUI/Kz5geSIAESIAESIAE8ibAo65NgHrUtcefvScBEiABEiABEiABexOgHrX3CNC/KxFgX0mABEiABEiABLIToB7NzoR7SIAESIAESIAEHJsAo3csAtSjjjVejJYESIAESIAESIAEnI0A9aizjSj740oE2FcSIAESIAEScAYC1KPO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247cB4wWBgLDgUFBwVWDMULB1YSHQLxjGztxCAXVUBlNUBy504ydBEiABOxMgHrUzgNA9yRAAk5DgB0hARIgARKwjgD1qHXc2IoESIAESIAESIAESEAaApbqUWm80goJkAAJkAAJkAAJkAAJGAlQjxo58J0ESIAE1EaA8ZAACZCAqxCgHnWVkWY/SYAESIAESIAESECdBOytR9VJhVGRAAmQAAmQAAmQAAkoRYB6VCnS9EMCJEAC9iVA7yRAAiSgVgLUo2odGcZFAiRAAiRAAiRAAq5BwNn0qGuMGntJAiRAAiRAAiRAAs5DgHrUecaSPSEBEiABJQnQFwmQAAlIRYB6VCqStEMCJEACJEACJEACJGANAerRvKnxKAmQAAmQAAmQAAmQgLwEqEfl5UvrJEACJEAC5hFgLRIgAdclQD3qumPPnpMACZAACZAACZCAGghQjyo7CvRGAiRAAiRAAiRAAiTwJAHq0Sd58BMJkAAJkIBzEGAvSIAEHIcA9ajjjBUjJQESIAESIAESIAFnJEA96tijyuhJgARIgARIgARIwNEJUI86+ggyfhIgARIgASUI0AcJkIB8BKhH5WNLyyRAAiRAAiRAAiRAAqYJUI+aZuRKNdhXEiABEiABEiABElCaAPWo0sTpjwRIgARIgAQEgQxIgAT+T4B69P8suEUCJEACJEACJEACJKA8AepR5Zm7kkf2lQRIgARIgARIgARMEaAeNUWIx0mABEiABEhA/QQYIQk4MgHqUUcePcZOAiRAAiRAAiRAAo5PgHrU8cfQlXrAvpIACZAACZAACTgfAepR5xtT9ogESIAESIAEbCXA9iSgJAHqUSVp0xcJkAAJkAAJkAAJkEBWAtSjWYnwsysRYF9JgARIgARIgATsT4B61P5jwAhIgARIgARIwNkJsH8kkBcB6tG86PAYCZAACZAACZAACZCA3ASoR+UmTPuuRIB9JQESIAESIAESsJwA9ajlzNiCBEiABEiABEjAvgTo3bkIUI8613iyNyRAAiRAAiRAAiTgaASoRx1txBivKxFgX0mABEiABEjAFQhQj7rCKLOPJEACJEACJEACeRHgMfsSoB61L396JwESIAESIAESIAFXJ0A96upnAPvvSgTYVxIgARIgARJQIwHqUTWOCmMiARIgARIgARJwZAKM3TIC1KOW8WJtEiABEiABEiABEiABaQlQj0rLk9ZIwJUIsK8kQAIkQAIkIAUB6lEpKNIGCZAACZAACZAACchHwNktU486+wizfyRAAiRAAiRAAiSgbgLUo+oeH0ZHAq5EgH0lARIgARJwTQLUo6457uw1CZAACZAACZCA6xJQW8+pR9U2IoyHBEiABEiABEiABFyLAPWoa403e0sCrkSAfSUBEiABEnAMAtSjjjFOjJIESIAESIAESIAE1ErA1rioR20lyPYkQAIkQAIkQAIkQAK2EKAetYUe25IACbgSAfaVBEiABEhAHgLUo/JwpVUSIAESIAESIAESIAHzCGTVo+a1Yi0SIAESIAESIAESIAESkIYA9ag0HGmFBEiABCwlwPokQAIkQAJGAtSjRg7/f3dzc/NS8KXRcAj+D59bJEACJEACJEACLkhAbjHkYEhFUWzYsOH8+fMXKvKaN29esWLF4NTBMDFcEiABEiABEiABEpCOAPXoEyyRrYRAfPHFF+so8nrhhRf8/PyoR58YA34gARKwkgCbkQAJkICjEqAeddSRY9wkQAIkQAIkQAIk4BwEHE2POgd19oIESIAESIAESIAESOA/AtSj/5Hg/0mABEiABB4nwG0SIAESUIoA9ahSpOmHBEiABEiABEiABEggJwKurkdzYsJ9JEACJEACJEACJEACyhGgHlWONT2RAAmQgCsTYN9JgARIIDcC1KO5keF+EiABEiABEiABEiABJQhQj0pLmdZIgARIgARIgARIgAQsI0A9ahkv1iYBEiABElAHAUZBAiTgPASoR51nLNkTEiABEiABEiABEnBEAtSj6h41RkcCJEACJEACJEACzk6AetTZR5j9IwESIAESMIcA65AACdiPAPWo/djTMwmQAAmQAAmQAAmQgCBQj7rWWcDekgAJkAAJkAAJkIDaCFCPqm1EGA8JkAAJkIAzEGAfSIAEzCdAPWo+K9YkARIgARIgARIgARKQngD1qPRMXcki+0oCJEACJEACJEACthKgHrWVINuTAAmQAAmQgPwE6IEEnJkA9agzjy77RgIkQAIkQAIkQALqJ0A9qv4xcqUI2VcSIAESIAESIAHXI0A96npjzh6TAAmQAAmQAAmQgJoIUI+qaTQYCwmQAAmQAAmQAAm4HgHqUdcbc1fqMftKAiRAAiRAAiSgfgLUo+ofI0ZIAiRAAiRAAmonwPhIwBYC1KO20GNbEiABEiABEiABEiABWwlQj9pKkO1diQD7SgIkQAIkQAIkID0B6lHpmdIiCZAACZAACZCAbQTY2rUIUI+61niztyRAAiRAAiRAAiSgNgLUo2obEcbjSgTYVxIgARIgARIgAUGgHuVZQAIkQAIkQAIk4OwE2D91E6AeVff4MDoSIAESIAESIAEScHYC1KPOPsLsnysRYF9JgARIgARIwBEJUI864qgxZhIgARIgARIgAXsSoG9pCVCPSsuT1kiABEiABEiABEiABCwjQD1qGS/WJgFXIsC+kgAJkAAJkIASBKhHlaBMHyRAAiRAAiRAAiSQOwFXP0I96upnAPtPAiRAAiRAAiRAAvYlQD1qX/70TgKuRIB9JQESIAESIIGcCFCP5kSF+0iABEiABEiABEjAcQk4WuT/AwAA//9TuwkMAAAABklEQVQDAK0Ovhvz3s1mAAAAAElFTkSuQmCC">
+      <div class="brand-name">Officedeck Technologies<span>Pvt Ltd</span></div>
+    </div>
+
+    <div class="glass filter-card">
+      <div class="filter-block">
+        <label>Date range</label>
+        <div class="chip-col" id="dateChips"></div>
+      </div>
+      <div class="filter-block">
+        <label>Category</label>
+        <div class="chip-col" id="catChips"></div>
+      </div>
+      <div class="filter-block">
+        <label>Vendor</label>
+        <select id="vendorSelect" multiple size="1"></select>
+      </div>
+      <div class="filter-block">
+        <label>Product / customer search</label>
+        <input type="text" id="searchInput" placeholder="e.g. Nykaa, Hexcush, CB0054&hellip;">
+      </div>
+      <div class="filter-actions">
+        <button class="btn-clear" id="clearFilters">Clear filters</button>
+        <button class="btn-apply" id="applyFilters">OK</button>
+      </div>
+    </div>
+
+    <div class="glass sync-card">
+      <div class="sync-info">
+        <div><span class="dot" id="syncDot"></span><span id="syncStatus">static data</span></div>
+        <div class="sync-time" id="syncTime">last synced &mdash;</div>
+      </div>
+      <button class="btn" id="refreshBtn">
+        <svg id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        Sync
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <div class="glass topbar">
+      <div>
+        <h1>Daily Purchase Manifest</h1>
+        <div class="subtitle" id="subtitleLine">Packaging procurement &amp; accounts payable &middot; loading&hellip;</div>
+      </div>
+    </div>
+
+    <div class="kpi-row" id="kpiRow"></div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Purchase mix by category</h2>
+        <span class="hint" id="mixHint">&mdash;</span>
+      </div>
+      <div class="panel chart-grid">
+        <div>
+          <div class="chart-box"><canvas id="catDonut"></canvas></div>
+          <div class="legend-list" id="catLegend"></div>
+        </div>
+        <div>
+          <div class="chart-box"><canvas id="trendChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Product margin</h2>
+        <span class="hint">Margin/unit = sales price &minus; purchase rate. Click a column to sort.</span>
+      </div>
+      <div class="panel">
+        <input type="text" class="table-search" id="productSearch" placeholder="Filter products&hellip;">
+        <div class="table-scroll">
+          <table id="productTable">
+            <thead><tr>
+              <th data-key="product">Product</th>
+              <th data-key="category">Category</th>
+              <th data-key="qty" class="num">Qty</th>
+              <th data-key="avgPurchase" class="num">Avg purchase rate</th>
+              <th data-key="avgSale" class="num">Avg sales price</th>
+              <th data-key="marginUnit" class="num">Margin / unit</th>
+              <th data-key="marginPct" class="num">Margin %</th>
+              <th data-key="totalMargin" class="num">Total margin</th>
+            </tr></thead>
+            <tbody id="productBody"></tbody>
+          </table>
+        </div>
+        <div class="row-count" id="productCount"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Vendor performance &mdash; month to date</h2>
+        <span class="hint">1&ndash;9 Sept 2026</span>
+      </div>
+      <div class="panel">
+        <div class="table-scroll">
+          <table id="vendorTable">
+            <thead><tr>
+              <th data-key="vendor">Vendor</th>
+              <th data-key="invoices" class="num">Invoices</th>
+              <th data-key="qty" class="num">Total qty</th>
+              <th data-key="totalPurchase" class="num">Total purchase (₹)</th>
+              <th data-key="avgRate" class="num">Avg rate</th>
+              <th data-key="avgMarginPct" class="num">Avg margin %</th>
+              <th data-key="share" class="num">Share of spend</th>
+            </tr></thead>
+            <tbody id="vendorBody"></tbody>
+          </table>
+        </div>
+        <div class="row-count" id="vendorCount"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Accounts payable &mdash; by vendor</h2>
+        <span class="hint" id="apHint">&mdash;</span>
+      </div>
+      <div class="panel">
+        <div class="table-scroll">
+          <table id="apTable">
+            <thead><tr>
+              <th data-key="vendor">Vendor</th>
+              <th data-key="invoices" class="num">Open invoices</th>
+              <th data-key="totalPayable" class="num">Payable, tax excl. (₹)</th>
+              <th data-key="estTax" class="num">Est. GST @18% (₹)</th>
+              <th data-key="estTotal" class="num">Est. payable incl. tax (₹)</th>
+            </tr></thead>
+            <tbody id="apBody"></tbody>
+          </table>
+        </div>
+        <div id="apEmptyNote" class="empty-note"></div>
+      </div>
+    </div>
+
+    <footer class="glass" style="padding:22px 26px;">
+      <div class="foot-grid">
+        <div>
+          <h3>Connect this to your live Google Sheet</h3>
+          <ol>
+            <li>In Google Sheets, open the <b>Data</b> tab &rarr; <code>File &gt; Share &gt; Publish to web</code>.</li>
+            <li>Choose the <b>Data</b> sheet, format <b>Comma-separated values (.csv)</b>, and publish.</li>
+            <li>Copy the generated URL and paste it into <code>CONFIG.sheetCsvUrl</code> near the top of the script in this file.</li>
+            <li>Keep the same column headers: <code>Date, Vendor name, Customer Name, PRODUCT NAME, Qty, Bill Amt (Tax Exclusive), PURCHASE RATE, CUSTOMER INVOICE NO, sales price</code>.</li>
+          </ol>
+        </div>
+        <div>
+          <h3>Hosting on GitHub Pages</h3>
+          <ol>
+            <li>Commit this file as <code>index.html</code> in your repo.</li>
+            <li>Enable Pages in <code>Settings &gt; Pages</code>, serving from your default branch.</li>
+            <li>The page auto&#8209;refreshes from your published sheet every 5 minutes, and the <b>Sync</b> button pulls on demand.</li>
+            <li>Optional &mdash; add columns <code>Payment Status</code> and <code>Due Date</code> to the sheet to unlock paid/pending and aging in the accounts payable section.</li>
+          </ol>
+        </div>
+      </div>
+      <div style="margin-top:6px;color:var(--text-dim);font-size:11px;">&copy; Officedeck Technologies Pvt Ltd</div>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+const EMBEDDED_DATA = [{"date":"2026-09-01","vendor":"UNICOM INDUSTRIES","customer":"POWERLOOK APPARELS PRIVATE LIMITED","product":"CB0082-CORR BOX-POWERLOOK--609.6Lx406.4Wx406.4H","qty":1500,"billAmt":99000,"purchaseRate":66,"invoice":"OTPL/26-27/02137","salesPrice":77.5},{"date":"2026-09-01","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":1000,"billAmt":6750,"purchaseRate":6.75,"invoice":"OTPL/26-27/02144","salesPrice":6},{"date":"2026-09-01","vendor":"PAPELTON","customer":"PERFORMANCE APPAREL ENTERPRISES PRIVATE LIMITED","product":"COURIER BAG_TRYB WEAR_W228.6-H279.4-F50.8","qty":10000,"billAmt":27900,"purchaseRate":2.79,"invoice":"OTPL/26-27/02133","salesPrice":4.6},{"date":"2026-09-01","vendor":"PAPELTON","customer":"ADITYA BIRLA FASHION AND RETAIL LIMITED-WEST BENGAL","product":"110062575-TWISTED HANDLE BAG_PANTALOONS_LARGE _D2-W470-G170-H450","qty":50,"billAmt":54900,"purchaseRate":1098,"invoice":"OTPL/26-27/02151","salesPrice":1244},{"date":"2026-09-01","vendor":"PAPELTON","customer":"ADITYA BIRLA FASHION AND RETAIL LIMITED-WEST BENGAL","product":"110062577-TWISTED HANDLE BAG_PANTALOONS_MEDIUM _D2-W394-G102-H317","qty":125,"billAmt":89750,"purchaseRate":718,"invoice":"OTPL/26-27/02150","salesPrice":880},{"date":"2026-09-01","vendor":"PAPELTON","customer":"ADITYA BIRLA FASHION AND RETAIL LIMITED-WEST BENGAL","product":"110062578-TWISTED HANDLE BAG_PANTALOONS_MEDIUM_D1-W394-G102-H317","qty":125,"billAmt":89750,"purchaseRate":718,"invoice":"OTPL/26-27/02150","salesPrice":880},{"date":"2026-09-01","vendor":"PAPELTON","customer":"ADITYA BIRLA FASHION AND RETAIL LIMITED-WEST BENGAL","product":"110062580-TWISTED HANDLE BAG_PANTALOONS_SMALL_D1W254-G102-H317","qty":160,"billAmt":83840,"purchaseRate":524,"invoice":"OTPL/26-27/02150","salesPrice":668},{"date":"2026-09-01","vendor":"PAPELTON","customer":"PROZO INTEGRATED LOGISTICS PRIVATE LIMITED-MAHARASHTRA","product":"HEXCUSH0041-W15 in-L250","qty":40,"billAmt":22840,"purchaseRate":571,"invoice":"OTPL/26-27/02149","salesPrice":688},{"date":"2026-09-01","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"COURIER BAG_NEEMANS-W584-H508-L2L","qty":6000,"billAmt":38460,"purchaseRate":6.41,"invoice":"OTPL/26-27/02148","salesPrice":7.48},{"date":"2026-09-01","vendor":"CREATIVVE INK","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"CB0054-CORR BOX-NYKAA-NIKE BOX 1-340Lx220Wx130H","qty":1075,"billAmt":15587.5,"purchaseRate":14.5,"invoice":"OTPL/26-27/02147","salesPrice":17.42},{"date":"2026-09-01","vendor":"CREATIVVE INK","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"CB0054-CORR BOX-NYKAA-NIKE BOX 1-340Lx220Wx130H","qty":2875,"billAmt":41687.5,"purchaseRate":14.5,"invoice":"OTPL/26-27/02146","salesPrice":17.42},{"date":"2026-09-01","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-MAHARASHTRA","product":"COURIER BAG_NEEMANS-W432-H508-L2L","qty":30000,"billAmt":137400,"purchaseRate":4.58,"invoice":"OTPL/26-27/02145","salesPrice":6.05},{"date":"2026-09-01","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-MAHARASHTRA","product":"COURIER BAG_NEEMANS-W584-H508-L2L","qty":6000,"billAmt":38460,"purchaseRate":6.41,"invoice":"OTPL/26-27/02145","salesPrice":7.48},{"date":"2026-09-01","vendor":"PAPELTON","customer":"Vellvette lifestyle Pvt Ltd","product":"FILL8 (SHEET FORM)_GENERAL-W330-L300 METER","qty":220,"billAmt":103400,"purchaseRate":470,"invoice":"OTPL/26-27/02143","salesPrice":680},{"date":"2026-09-01","vendor":"PAPELTON","customer":"Vellvette lifestyle Pvt Ltd","product":"HEXCUSH0025-W 10 in\" -L 250","qty":50,"billAmt":24100,"purchaseRate":482,"invoice":"OTPL/26-27/02143","salesPrice":510},{"date":"2026-09-01","vendor":"PAPELTON","customer":"KAZO FASHION PRIVATE LIMITED - UTTAR PRADESH","product":"COURIER BAG_KAZO1_W315-406-F50","qty":10000,"billAmt":33100,"purchaseRate":3.31,"invoice":"OTPL/26-27/02142","salesPrice":4.2},{"date":"2026-09-01","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-WEST BENGAL","product":"COURIER BAG_NEEMANS-W584-H508-L2L","qty":2000,"billAmt":12820,"purchaseRate":6.41,"invoice":"OTPL/26-27/02141","salesPrice":7.48},{"date":"2026-09-01","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-KARNATAKA","product":"COURIER BAG_NEEMANS-W584-H508-L2L","qty":3000,"billAmt":19230,"purchaseRate":6.41,"invoice":"OTPL/26-27/02140","salesPrice":7.48},{"date":"2026-09-01","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"COURIER BAG_NEEMANS-W432-H508-L2L","qty":30000,"billAmt":137400,"purchaseRate":4.58,"invoice":"OTPL/26-27/02139","salesPrice":6.05},{"date":"2026-09-01","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-GURGAON","product":"COURIER BAG_NEEMANS-W432-H508-L2L","qty":45000,"billAmt":206100,"purchaseRate":4.58,"invoice":"OTPL/26-27/02138","salesPrice":6.05},{"date":"2026-09-01","vendor":"Somnath Packaging","customer":"THE SOULED STORE PVT LTD","product":"TSS white color print 2\" -BOPP Tape","qty":80,"billAmt":2200,"purchaseRate":27.5,"invoice":"OTPL/26-27/02136","salesPrice":31.5},{"date":"2026-09-01","vendor":"PAPELTON","customer":"HERBALIFE INTERNATIONAL INDIA PVT LTD-PUNJAB","product":"HEXCUSH0029-W 15 in\" -L 100","qty":1000,"billAmt":343000,"purchaseRate":343,"invoice":"OTPL/26-27/02135","salesPrice":450},{"date":"2026-09-01","vendor":"PAPELTON","customer":"MANASH E-COMMERCE PRIVATE LIMITED - ASSAM","product":"HEXCUSH0009-W 10 in\" -L 250","qty":200,"billAmt":65400,"purchaseRate":327,"invoice":"OTPL/26-27/02134","salesPrice":362.5},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-GURGAON","product":"COURIER BAG_NEEMANS-W584-H508-L2L","qty":10000,"billAmt":64100,"purchaseRate":6.41,"invoice":"OTPL/26-27/02167","salesPrice":7.48},{"date":"2026-09-02","vendor":"PAPELTON","customer":"HERBALIFE INTERNATIONAL INDIA PRIVATE LIMITED-MAHARASHTRA","product":"HEXCUSH0029-W 15 in\" -L 100","qty":2400,"billAmt":823200,"purchaseRate":343,"invoice":"OTPL/26-27/02166","salesPrice":440},{"date":"2026-09-02","vendor":"PAPELTON","customer":"LIFESTYLE INTERNATIONAL PVT. LTD.","product":"COURIER BAG_LIFESTYLE_W351-H424-L2L","qty":10000,"billAmt":13100,"purchaseRate":1.31,"invoice":"OTPL/26-27/02165","salesPrice":3.48},{"date":"2026-09-02","vendor":"PAPELTON","customer":"Samarabh Wellness and Consulting LLP","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":1500,"billAmt":10125,"purchaseRate":6.75,"invoice":"OTPL/26-27/02164","salesPrice":6},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":200,"billAmt":1350,"purchaseRate":6.75,"invoice":"OTPL/26-27/02163","salesPrice":6},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":1500,"billAmt":10125,"purchaseRate":6.75,"invoice":"OTPL/26-27/02162","salesPrice":6},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":1000,"billAmt":6750,"purchaseRate":6.75,"invoice":"OTPL/26-27/02161","salesPrice":6},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":1000,"billAmt":6750,"purchaseRate":6.75,"invoice":"OTPL/26-27/02160","salesPrice":6},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":500,"billAmt":3375,"purchaseRate":6.75,"invoice":"OTPL/26-27/02159","salesPrice":6},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":1000,"billAmt":6750,"purchaseRate":6.75,"invoice":"OTPL/26-27/02158","salesPrice":6},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":1500,"billAmt":10125,"purchaseRate":6.75,"invoice":"OTPL/26-27/02157","salesPrice":6},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":1250,"billAmt":8437.5,"purchaseRate":6.75,"invoice":"OTPL/26-27/02156","salesPrice":6},{"date":"2026-09-02","vendor":"Mangalam Poly Impex","customer":"POWERLOOK APPARELS PRIVATE LIMITED","product":"TAPE0014-BOPP-POWERLOOK--Printed-1C-44Mic-72mm-65M","qty":96,"billAmt":6048,"purchaseRate":63,"invoice":"OTPL/26-27/02155","salesPrice":69},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":1500,"billAmt":10125,"purchaseRate":6.75,"invoice":"OTPL/26-27/02154","salesPrice":6},{"date":"2026-09-02","vendor":"PAPELTON","customer":"NEEMANS PRIVATE LIMITED-TELANGANA 2","product":"PAPER HANDLE BAG-NEEMANS-W11.91-H15.61","qty":1000,"billAmt":6750,"purchaseRate":6.75,"invoice":"OTPL/26-27/02153","salesPrice":6},{"date":"2026-09-02","vendor":"UNICOM INDUSTRIES","customer":"TOMORROWLAND APPARELS PRIVATE LIMITED","product":"CB0103-CORR BOX-Bombay Shirt--254Lx254Wx76.2H","qty":85,"billAmt":1870,"purchaseRate":22,"invoice":"OTPL/26-27/02168","salesPrice":25.9},{"date":"2026-09-03","vendor":"PAPELTON","customer":"JESTA PRINTERS PRIVATE LIMITED","product":"TWISTED HANDLE BAG_BURNT TOAST MEDIUM_W430-G120-H320","qty":10000,"billAmt":83699.99999999999,"purchaseRate":8.37,"invoice":"OTPL/26-27/02170","salesPrice":8.5},{"date":"2026-09-03","vendor":"PAPELTON","customer":"LIFESTYLE INTERNATIONAL PVT. LTD.","product":"COURIER BAG_LIFESTYLE_W330-H373-L2L","qty":20000,"billAmt":54200,"purchaseRate":2.71,"invoice":"OTPL/26-27/02172","salesPrice":3.01},{"date":"2026-09-03","vendor":"PAPELTON","customer":"AMAZON SELLER SERVICES PRIVATE LIMITED-MAHARASHTRA","product":"BUBBLE MAILER BAGS_AMAZON CM3-W425-H285-F60","qty":12000,"billAmt":78120,"purchaseRate":6.51,"invoice":"OTPL/26-27/02174","salesPrice":7.66},{"date":"2026-09-03","vendor":"PAPELTON","customer":"AMAZON SELLER SERVICES PRIVATE LIMITED-MAHARASHTRA","product":"BUBBLE MAILER BAGS_AMAZON CM4-W350-H500-F60","qty":7500,"billAmt":68250,"purchaseRate":9.1,"invoice":"OTPL/26-27/02174","salesPrice":10.46},{"date":"2026-09-03","vendor":"PAPELTON","customer":"AMAZON SELLER SERVICES PRIVATE LIMITED-MAHARASHTRA","product":"BUBBLE MAILER BAGS_AMAZON CM5-W530-H415-F60","qty":3200,"billAmt":36512,"purchaseRate":11.41,"invoice":"OTPL/26-27/02174","salesPrice":13.27},{"date":"2026-09-03","vendor":"UNICOM INDUSTRIES","customer":"HEAVENLY SECRETS PRIVATE LIMITED-MAHARASHTRA","product":"CB0074-CORR BOX-PILGRIM-B2-228Lx177Wx76H","qty":3400,"billAmt":19380,"purchaseRate":5.7,"invoice":"OTPL/26-27/02175","salesPrice":6.45},{"date":"2026-09-03","vendor":"UNICOM INDUSTRIES","customer":"HEAVENLY SECRETS PRIVATE LIMITED-MAHARASHTRA","product":"CB0073-CORR BOX-PILGRIM-B1-210Lx110Wx85H","qty":9600,"billAmt":34560,"purchaseRate":3.6,"invoice":"OTPL/26-27/02175","salesPrice":4},{"date":"2026-09-03","vendor":"UNICOM INDUSTRIES","customer":"HEAVENLY SECRETS PRIVATE LIMITED-MAHARASHTRA","product":"CB0072-CORR BOX-PILGRIM-B0-210Lx90Wx60H","qty":13400,"billAmt":36850,"purchaseRate":2.75,"invoice":"OTPL/26-27/02175","salesPrice":3.07},{"date":"2026-09-03","vendor":"Saai Ganesh Packaging","customer":"LLOYDS LUXURIES LIMITED-MAHARASHTRA","product":"CB0095-CORR BOX-LLOYDS--185Lx130Wx105H","qty":1000,"billAmt":22000,"purchaseRate":22,"invoice":"OTPL/26-27/02176","salesPrice":25.65},{"date":"2026-09-04","vendor":"PAPELTON","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"COURIER BAG_NYKAA FASHION Regular -W272-G140-H305-F50","qty":34000,"billAmt":83300,"purchaseRate":2.45,"invoice":"OTPL/26-27/02179","salesPrice":3.1},{"date":"2026-09-04","vendor":"PAPELTON","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"COURIER BAG_NYKAA FASHION Regular -W390-G120-H457-F50","qty":30000,"billAmt":130800.00000000001,"purchaseRate":4.36,"invoice":"OTPL/26-27/02179","salesPrice":5.9},{"date":"2026-09-04","vendor":"PAPELTON","customer":"MOSAIC WELLNESS PRIVATE LIMITED - MAHARASHTRA","product":"FILL8  (ROLL FORM)_GENERAL-W330-L390 Meter_10 Kgs","qty":100,"billAmt":47000,"purchaseRate":470,"invoice":"OTPL/26-27/02180","salesPrice":620},{"date":"2026-09-04","vendor":"PAPELTON","customer":"LIFESTYLE INTERNATIONAL PRIVATE LIMITED - KARNATAKA","product":"COURIER BAG_LIFESTYLE_W431-H533-L2L","qty":20000,"billAmt":67000,"purchaseRate":3.35,"invoice":"OTPL/26-27/02182","salesPrice":5.31},{"date":"2026-09-04","vendor":"PAPELTON","customer":"LIFESTYLE INTERNATIONAL PRIVATE LIMITED - KARNATAKA","product":"COURIER BAG_LIFESTYLE_W351-H424-L2L","qty":200000,"billAmt":262000,"purchaseRate":1.31,"invoice":"OTPL/26-27/02182","salesPrice":3.48},{"date":"2026-09-04","vendor":"PAPELTON","customer":"LIFESTYLE INTERNATIONAL PRIVATE LIMITED - KARNATAKA","product":"COURIER BAG_LIFESTYLE_W330-H373-L2L","qty":200000,"billAmt":542000,"purchaseRate":2.71,"invoice":"OTPL/26-27/02182","salesPrice":3.01},{"date":"2026-09-04","vendor":"PAPELTON","customer":"LIFESTYLE INTERNATIONAL PRIVATE LIMITED - KARNATAKA","product":"COURIER BAG_LIFESTYLE_W203-H280-L2L","qty":5000,"billAmt":16750,"purchaseRate":3.35,"invoice":"OTPL/26-27/02182","salesPrice":1.41},{"date":"2026-09-04","vendor":"PAPELTON","customer":"BIBA FASHION LIMITED","product":"COURIER BAG_BIBA_W315-H406-L2L","qty":25000,"billAmt":110000.00000000001,"purchaseRate":4.4,"invoice":"OTPL/26-27/02183","salesPrice":4.4},{"date":"2026-09-04","vendor":"Mangalam Poly Impex","customer":"POWERLOOK APPARELS PRIVATE LIMITED","product":"TAPE0014-BOPP-POWERLOOK--Printed-1C-44Mic-72mm-65M","qty":624,"billAmt":39312,"purchaseRate":63,"invoice":"OTPL/26-27/02184","salesPrice":69},{"date":"2026-09-07","vendor":"PAPELTON","customer":"HERBALIFE INTERNATIONAL INDIA PVT LTD-PUNJAB","product":"BUBBLE MAILER BAGS_HERBALIFE SMALL_W395-H285-F50","qty":700,"billAmt":5712,"purchaseRate":8.16,"invoice":"OTPL/26-27/02186","salesPrice":10.45},{"date":"2026-09-07","vendor":"UNICOM INDUSTRIES","customer":"MANOR RAMA CARE PRIVATE LIMITED","product":"CB0086-CORR BOX-SALT-SMALL BOX-218.44Lx94Wx83.82H","qty":3162,"billAmt":25422.479999999996,"purchaseRate":8.04,"invoice":"OTPL/26-27/02187","salesPrice":9.81},{"date":"2026-09-07","vendor":"UNICOM INDUSTRIES","customer":"MANOR RAMA CARE PRIVATE LIMITED","product":"CB0085-CORR BOX-SALT-MEDIUM BOX-215.138Lx125Wx85.09H","qty":4300,"billAmt":41710,"purchaseRate":9.7,"invoice":"OTPL/26-27/02187","salesPrice":11.99},{"date":"2026-09-07","vendor":"Rajkumar","customer":"NYKAA E- RETAIL LIMITED - WEST BENGAL","product":"CB0058-CORR BOX-NYKAA-LUX4 001-165Lx102Wx65H","qty":10200,"billAmt":null,"purchaseRate":null,"invoice":"OTPL/26-27/02206","salesPrice":13.72},{"date":"2026-09-07","vendor":"PAPELTON","customer":"BAD BRAINS STREETSTYLE PRIVATE LIMITED","product":"COURIER BAG_BONKERS_W178-H254-L2L","qty":20000,"billAmt":34400,"purchaseRate":1.72,"invoice":"OTPL/26-27/02205","salesPrice":4.5},{"date":"2026-09-07","vendor":"PAPELTON","customer":"BAD BRAINS STREETSTYLE PRIVATE LIMITED","product":"COURIER BAG_BONKERS_W254-H356-L2L","qty":30000,"billAmt":87600,"purchaseRate":2.92,"invoice":"OTPL/26-27/02205","salesPrice":3.9},{"date":"2026-09-07","vendor":"PAPELTON","customer":"BAD BRAINS STREETSTYLE PRIVATE LIMITED","product":"COURIER BAG_BONKERS_W279-H381-L2L","qty":30000,"billAmt":99300,"purchaseRate":3.31,"invoice":"OTPL/26-27/02205","salesPrice":4.5},{"date":"2026-09-07","vendor":"PAPELTON","customer":"BAD BRAINS STREETSTYLE PRIVATE LIMITED","product":"COURIER BAG_BONKERS_W304-H406-L2L","qty":30000,"billAmt":136800,"purchaseRate":4.56,"invoice":"OTPL/26-27/02205","salesPrice":4.85},{"date":"2026-09-07","vendor":"PAPELTON","customer":"BAD BRAINS STREETSTYLE PRIVATE LIMITED","product":"COURIER BAG_BONKERS_W330-H406-L2L","qty":30000,"billAmt":139800,"purchaseRate":4.66,"invoice":"OTPL/26-27/02205","salesPrice":4.9},{"date":"2026-09-07","vendor":"PAPELTON","customer":"BAD BRAINS STREETSTYLE PRIVATE LIMITED","product":"COURIER BAG_BONKERS_W355-H457-L2L","qty":30000,"billAmt":170400,"purchaseRate":5.68,"invoice":"OTPL/26-27/02205","salesPrice":8.5},{"date":"2026-09-07","vendor":"PAPELTON","customer":"BAD BRAINS STREETSTYLE PRIVATE LIMITED","product":"COURIER BAG_BONKERS_W381-H483-L2L","qty":20000,"billAmt":110000,"purchaseRate":5.5,"invoice":"OTPL/26-27/02205","salesPrice":11},{"date":"2026-09-07","vendor":"PAPELTON","customer":"BAD BRAINS STREETSTYLE PRIVATE LIMITED","product":"COURIER BAG_BONKERS_W406-H508-L2L","qty":20000,"billAmt":127800,"purchaseRate":6.39,"invoice":"OTPL/26-27/02205","salesPrice":14.5},{"date":"2026-09-07","vendor":"PAPELTON","customer":"LIFESTYLE INTERNATIONAL PVT. LTD.","product":"COURIER BAG_LIFESTYLE_W203-H280-L2L","qty":30000,"billAmt":100500,"purchaseRate":3.35,"invoice":"OTPL/26-27/02204","salesPrice":1.41},{"date":"2026-09-07","vendor":"PAPELTON","customer":"BAD BRAINS STREETSTYLE PRIVATE LIMITED","product":"COURIER BAG_BONKERS_W254-H356-L2L","qty":1000,"billAmt":2920,"purchaseRate":2.92,"invoice":"OTPL/26-27/02203","salesPrice":3.9},{"date":"2026-09-07","vendor":"PAPELTON","customer":"BAD BRAINS STREETSTYLE PRIVATE LIMITED","product":"COURIER BAG_BONKERS_W279-H381-L2L","qty":2000,"billAmt":6620,"purchaseRate":3.31,"invoice":"OTPL/26-27/02203","salesPrice":4.5},{"date":"2026-09-07","vendor":"PAPELTON","customer":"ADITYA BIRLA FASHION AND RETAIL LIMITED-WEST BENGAL","product":"110062579-TWISTED HANDLE BAG_PANTALOONS_SMALL_D2-W254-G102-H317","qty":80,"billAmt":41920,"purchaseRate":524,"invoice":"OTPL/26-27/02201","salesPrice":668},{"date":"2026-09-07","vendor":"PAPELTON","customer":"ADITYA BIRLA FASHION AND RETAIL LIMITED-WEST BENGAL","product":"110062580-TWISTED HANDLE BAG_PANTALOONS_SMALL_D1W254-G102-H317","qty":80,"billAmt":41920,"purchaseRate":524,"invoice":"OTPL/26-27/02201","salesPrice":668},{"date":"2026-09-07","vendor":"PAPELTON","customer":"ADITYA BIRLA FASHION AND RETAIL LIMITED-WEST BENGAL","product":"110062577-TWISTED HANDLE BAG_PANTALOONS_MEDIUM _D2-W394-G102-H317","qty":150,"billAmt":107700,"purchaseRate":718,"invoice":"OTPL/26-27/02201","salesPrice":880},{"date":"2026-09-07","vendor":"PAPELTON","customer":"ADITYA BIRLA FASHION AND RETAIL LIMITED-WEST BENGAL","product":"110062578-TWISTED HANDLE BAG_PANTALOONS_MEDIUM_D1-W394-G102-H317","qty":150,"billAmt":107700,"purchaseRate":718,"invoice":"OTPL/26-27/02201","salesPrice":880},{"date":"2026-09-07","vendor":"PAPELTON","customer":"ADITYA BIRLA FASHION AND RETAIL LIMITED-WEST BENGAL","product":"110062575-TWISTED HANDLE BAG_PANTALOONS_LARGE _D2-W470-G170-H450","qty":32,"billAmt":35136,"purchaseRate":1098,"invoice":"OTPL/26-27/02201","salesPrice":1244},{"date":"2026-09-07","vendor":"PAPELTON","customer":"ADITYA BIRLA FASHION AND RETAIL LIMITED-WEST BENGAL","product":"110062576-TWISTED HANDLE BAG_PANTALOONS_LARGE_D1-W470-G170-H451","qty":32,"billAmt":35136,"purchaseRate":1098,"invoice":"OTPL/26-27/02201","salesPrice":1244},{"date":"2026-09-07","vendor":"PAPELTON","customer":"NYKAA E- RETAIL LIMITED - HARYANA","product":"HEXCUSH0011-W 15 in\" -L 250","qty":50,"billAmt":35900,"purchaseRate":718,"invoice":"OTPL/26-27/02199","salesPrice":710},{"date":"2026-09-07","vendor":"PAPELTON","customer":"Wellversed Health Private Limited","product":"COURIER BAG_WELLVERSED_W280-H356-L2L","qty":9000,"billAmt":20880,"purchaseRate":2.32,"invoice":"OTPL/26-27/02198","salesPrice":2.95},{"date":"2026-09-07","vendor":"PAPELTON","customer":"Suta Pvt Ltd","product":"COURIER BAG_SUTA_W355-H457-F50","qty":10000,"billAmt":34300,"purchaseRate":3.43,"invoice":"OTPL/26-27/02197","salesPrice":4.11},{"date":"2026-09-07","vendor":"PAPELTON","customer":"CACTI DESIGNS PRIVATE LIMITED-UTTAR PRADESH","product":"COURIER BAG_CACTI_W406-H508-F50","qty":1500,"billAmt":null,"purchaseRate":null,"invoice":"OTPL/26-27/02195","salesPrice":6.3},{"date":"2026-09-07","vendor":"PAPELTON","customer":"NYKAA E- RETAIL LIMITED - GUJARAT","product":"HEXCUSH0043-W 10 in\" -L 250","qty":100,"billAmt":56100,"purchaseRate":561,"invoice":"OTPL/26-27/02194","salesPrice":754.92},{"date":"2026-09-07","vendor":"Karan","customer":"HEAVENLY SECRETS PRIVATE LIMITED-KARNATAKA","product":"CB0075-CORR BOX-PILGRIM-B3-311Lx185Wx100H","qty":4400,"billAmt":38720,"purchaseRate":8.8,"invoice":"OTPL/26-27/02193","salesPrice":9.63},{"date":"2026-09-07","vendor":"Karan","customer":"HEAVENLY SECRETS PRIVATE LIMITED-KARNATAKA","product":"CB0076-CORR BOX-PILGRIM-B5-315Lx315Wx130H","qty":2706,"billAmt":43296,"purchaseRate":16,"invoice":"OTPL/26-27/02193","salesPrice":20.4},{"date":"2026-09-07","vendor":"Karan","customer":"HEAVENLY SECRETS PRIVATE LIMITED-KARNATAKA","product":"CB0073-CORR BOX-PILGRIM-B1-210Lx110Wx85H","qty":9400,"billAmt":33840,"purchaseRate":3.6,"invoice":"OTPL/26-27/02193","salesPrice":4},{"date":"2026-09-07","vendor":"CREATIVVE INK","customer":"POWERLOOK APPARELS PRIVATE LIMITED","product":"CB0082-CORR BOX-POWERLOOK--609.6Lx406.4Wx406.4H","qty":500,"billAmt":33000,"purchaseRate":66,"invoice":"OTPL/26-27/02191","salesPrice":77.5},{"date":"2026-09-07","vendor":"Packtech","customer":"BLUE DART EXPRESS LIMITED - MAHARASHTRA","product":"CB0042-CORR BOX-BLUE DART-LAPTOP BOX-530Lx300Wx70H","qty":1350,"billAmt":67500,"purchaseRate":50,"invoice":"OTPL/26-27/02190","salesPrice":102.3},{"date":"2026-09-07","vendor":"Karan","customer":"HEAVENLY SECRETS PRIVATE LIMITED-KARNATAKA","product":"CB0073-CORR BOX-PILGRIM-B1-210Lx110Wx85H","qty":15250,"billAmt":54900,"purchaseRate":3.6,"invoice":"OTPL/26-27/02189","salesPrice":4},{"date":"2026-09-07","vendor":"UNICOM INDUSTRIES","customer":"HEAVENLY SECRETS PRIVATE LIMITED-MAHARASHTRA","product":"CB0075-CORR BOX-PILGRIM-B3-311Lx185Wx100H","qty":8600,"billAmt":75680,"purchaseRate":8.8,"invoice":"OTPL/26-27/02188","salesPrice":9.63},{"date":"2026-09-08","vendor":"PAPELTON","customer":"GLOBAL SS BEAUTY BRANDS LIMITED - HARYANA","product":"HEXCUSH0029-W 15 in\" -L 100","qty":100,"billAmt":34300,"purchaseRate":343,"invoice":"OTPL/26-27/02221","salesPrice":450},{"date":"2026-09-08","vendor":"Shree sai","customer":"NYKAA E- RETAIL LIMITED - GUJARAT","product":"BTB009-BOX TYPE BAG -NYKAA-GBTB-5-190Wx105Gx425Hx81F","qty":2000,"billAmt":18660,"purchaseRate":9.33,"invoice":"OTPL/26-27/02210","salesPrice":13.6},{"date":"2026-09-08","vendor":"Shree sai","customer":"NYKAA E- RETAIL LIMITED - GUJARAT","product":"BTB006-BOX TYPE BAG -NYKAA-GBTB-4-195Wx100Gx280Hx54F","qty":2000,"billAmt":17140,"purchaseRate":8.57,"invoice":"OTPL/26-27/02210","salesPrice":10.95},{"date":"2026-09-08","vendor":"Shree sai","customer":"NYKAA E- RETAIL LIMITED - GUJARAT","product":"BTB008-BOX TYPE BAG -NYKAA-GBTB-3-165Wx95Gx185Hx53F","qty":2000,"billAmt":12380,"purchaseRate":6.19,"invoice":"OTPL/26-27/02210","salesPrice":8},{"date":"2026-09-08","vendor":"Shree sai","customer":"NYKAA E- RETAIL LIMITED - GUJARAT","product":"BTB007-BOX TYPE BAG -NYKAA-GBTB-1-105Wx70Gx172Hx130F","qty":2000,"billAmt":7620,"purchaseRate":3.81,"invoice":"OTPL/26-27/02210","salesPrice":5.35},{"date":"2026-09-08","vendor":"PAPELTON","customer":"ZIVORE APPAREL PRIVATE LIMITED - UTTAR PRADESH","product":"COURIER BAG_LIBAS4_W533-H584-L2L","qty":4500,"billAmt":10890,"purchaseRate":2.42,"invoice":"OTPL/26-27/02220","salesPrice":8},{"date":"2026-09-08","vendor":"PAPELTON","customer":"GO FASHION (INDIA) LIMITED","product":"COURIER BAG_GO COLOR_W470-H508-L2L","qty":10000,"billAmt":62699.99999999999,"purchaseRate":6.27,"invoice":"OTPL/26-27/02217","salesPrice":8.95},{"date":"2026-09-08","vendor":"PAPELTON","customer":"GO FASHION (INDIA) LIMITED","product":"COURIER BAG_GO COLOR_W290-H395-L2L","qty":40000,"billAmt":133600,"purchaseRate":3.34,"invoice":"OTPL/26-27/02217","salesPrice":5.17},{"date":"2026-09-08","vendor":"PAPELTON","customer":"ZIVORE APPAREL PRIVATE LIMITED - UTTAR PRADESH","product":"COURIER BAG_LIBAS4_W533-H584-L2L","qty":5000,"billAmt":12100,"purchaseRate":2.42,"invoice":"OTPL/26-27/02216","salesPrice":8},{"date":"2026-09-08","vendor":"PAPELTON","customer":"ZIVORE APPAREL PRIVATE LIMITED - UTTAR PRADESH","product":"COURIER BAG_LIBAS2_W414-H533-L2L","qty":15000,"billAmt":63000,"purchaseRate":4.2,"invoice":"OTPL/26-27/02216","salesPrice":6.27},{"date":"2026-09-08","vendor":"PAPELTON","customer":"ZIVORE APPAREL PRIVATE LIMITED - UTTAR PRADESH","product":"COURIER BAG_LIBAS1_W373-H432-L2L","qty":25000,"billAmt":72000,"purchaseRate":2.88,"invoice":"OTPL/26-27/02216","salesPrice":3.47},{"date":"2026-09-08","vendor":"PAPELTON","customer":"ZIVORE APPAREL PRIVATE LIMITED - UTTAR PRADESH","product":"COURIER BAG_LIBAS3_W350-H381-L2L","qty":20000,"billAmt":52000,"purchaseRate":2.6,"invoice":"OTPL/26-27/02216","salesPrice":2.91},{"date":"2026-09-08","vendor":"PAPELTON","customer":"AMAZON SELLER SERVICES PRIVATE LIMITED-MAHARASHTRA","product":"BUBBLE MAILER BAGS_AMAZON CM4-W350-H500-F60","qty":5000,"billAmt":45500,"purchaseRate":9.1,"invoice":"OTPL/26-27/02215","salesPrice":10.46},{"date":"2026-09-08","vendor":"PAPELTON","customer":"AMAZON SELLER SERVICES PRIVATE LIMITED-MAHARASHTRA","product":"BUBBLE MAILER BAGS_AMAZON CM3-W425-H285-F60","qty":16000,"billAmt":104160,"purchaseRate":6.51,"invoice":"OTPL/26-27/02215","salesPrice":7.66},{"date":"2026-09-08","vendor":"PAPELTON","customer":"AMAZON SELLER SERVICES PRIVATE LIMITED-MAHARASHTRA","product":"BUBBLE MAILER BAGS_AMAZON CM5-W530-H415-F60","qty":3200,"billAmt":36512,"purchaseRate":11.41,"invoice":"OTPL/26-27/02215","salesPrice":13.27},{"date":"2026-09-08","vendor":"PAPELTON","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"COURIER BAG_NYKAA.COM Regular  -W50-H584-L2L","qty":30000,"billAmt":176100,"purchaseRate":5.87,"invoice":"OTPL/26-27/02214","salesPrice":7.7},{"date":"2026-09-08","vendor":"PAPELTON","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"COURIER BAG_NYKAA.COM SMALL_W272-G140-H305-F50","qty":41000,"billAmt":127100,"purchaseRate":3.1,"invoice":"OTPL/26-27/02214","salesPrice":3.1},{"date":"2026-09-08","vendor":"PAPELTON","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"COURIER BAG_NYKAA FASHION Regular -W272-G140-H305-F50","qty":40000,"billAmt":98000,"purchaseRate":2.45,"invoice":"OTPL/26-27/02213","salesPrice":3.1},{"date":"2026-09-08","vendor":"PAPELTON","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"COURIER BAG_NYKAA FASHION_W530-H584-L2L","qty":21500,"billAmt":126205,"purchaseRate":5.87,"invoice":"OTPL/26-27/02213","salesPrice":7.7},{"date":"2026-09-08","vendor":"PAPELTON","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"COURIER BAG_NYKAA FASHION Regular -W390-G120-H457-F50","qty":20000,"billAmt":87200,"purchaseRate":4.36,"invoice":"OTPL/26-27/02213","salesPrice":5.9},{"date":"2026-09-08","vendor":"PAPELTON","customer":"MANASH E-COMMERCE PRIVATE LTD-UTTAR PRADESH","product":"HEXCUSH0009-W 10 in\" -L 250","qty":200,"billAmt":65400,"purchaseRate":327,"invoice":"OTPL/26-27/02212","salesPrice":362.5},{"date":"2026-09-08","vendor":"Saai Ganesh Packaging","customer":"SHREY BAWA","product":"CB0107-CORR BOX-Shrey Bawa--180Lx100Wx50H","qty":25000,"billAmt":56250,"purchaseRate":2.25,"invoice":"OTPL/26-27/02211","salesPrice":2.58},{"date":"2026-09-08","vendor":"UNICOM INDUSTRIES","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"CB0054-CORR BOX-NYKAA-NIKE BOX 1-340Lx220Wx130H","qty":5000,"billAmt":72500,"purchaseRate":14.5,"invoice":"OTPL/26-27/02208","salesPrice":17.42},{"date":"2026-09-08","vendor":"PAPELTON","customer":"Rubicon Renew","product":"FILL8 (ROLL FORM)_GENERAL-W381-L250 METER","qty":1,"billAmt":470,"purchaseRate":470,"invoice":"OTPL/26-27/02207","salesPrice":473.73},{"date":"2026-09-08","vendor":"PAPELTON","customer":"Rubicon Renew","product":"Shredded paper","qty":1,"billAmt":85,"purchaseRate":85,"invoice":"OTPL/26-27/02207","salesPrice":1355.08},{"date":"2026-09-08","vendor":"PAPELTON","customer":"USANA HEALTH SCIENCES INDIA PRIVATE LIMITED","product":"BUBBLE MAILER BAG_USANA_W203-H254-F50","qty":5000,"billAmt":13300,"purchaseRate":2.66,"invoice":"OTPL/26-27/02219","salesPrice":5.32},{"date":"2026-09-09","vendor":"Saai Ganesh Packaging","customer":"BLUE DART EXPRESS LIMITED - MAHARASHTRA","product":"Blue Dart Mobile phone protective nBox","qty":2550,"billAmt":32640,"purchaseRate":12.8,"invoice":"OTPL/26-27/02222","salesPrice":19.6},{"date":"2026-09-09","vendor":"PAPELTON","customer":"CHUMBAK DESIGN PRIVATE LIMITED-KARNATAKA","product":"COURIER BAG_CHUMBAK_W381-H508-L2L","qty":10000,"billAmt":27500,"purchaseRate":2.75,"invoice":"OTPL/26-27/02224","salesPrice":8.65},{"date":"2026-09-09","vendor":"UNICOM INDUSTRIES","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"CB0054-CORR BOX-NYKAA-NIKE BOX 1-340Lx220Wx130H","qty":4361,"billAmt":63234.5,"purchaseRate":14.5,"invoice":"OTPL/26-27/02232","salesPrice":17.42},{"date":"2026-09-09","vendor":"PAPELTON","customer":"MANASH E-COMMERCE PRIVATE LTD-TAMIL NADU","product":"COURIER BAG_PURPLLE PB002_W330-H280-F50","qty":2000,"billAmt":4800,"purchaseRate":2.4,"invoice":"OTPL/26-27/02235","salesPrice":3.09},{"date":"2026-09-09","vendor":"PAPELTON","customer":"MANASH E-COMMERCE PRIVATE LIMITED - KERALA","product":"COURIER BAG_PURPLLE PB002_W330-H280-F50","qty":12000,"billAmt":28800,"purchaseRate":2.4,"invoice":"OTPL/26-27/02234","salesPrice":3.09},{"date":"2026-09-09","vendor":"PAPELTON","customer":"MANASH E-COMMERCE PRIVATE LIMITED - TELANGANA","product":"COURIER BAG_PURPLLE PB002_W330-H280-F50","qty":7000,"billAmt":16800,"purchaseRate":2.4,"invoice":"OTPL/26-27/02231","salesPrice":3.09},{"date":"2026-09-09","vendor":"PAPELTON","customer":"MANASH E-COMMERCE PRIVATE LIMITED - WEST BENGAL","product":"COURIER BAG_PURPLLE PB002_W330-H280-F50","qty":4000,"billAmt":9600,"purchaseRate":2.4,"invoice":"OTPL/26-27/02230","salesPrice":3.09},{"date":"2026-09-09","vendor":"PAPELTON","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"COURIER BAG_NYKAA FASHION GNF2 NIKE_W356-H449-F70","qty":15000,"billAmt":65400.00000000001,"purchaseRate":4.36,"invoice":"OTPL/26-27/02229","salesPrice":5.9},{"date":"2026-09-09","vendor":"PAPELTON","customer":"MANASH E-COMMERCE PRIVATE LIMITED - ASSAM","product":"HEXCUSH0009-W 10 in\" -L 250","qty":200,"billAmt":65400,"purchaseRate":327,"invoice":"OTPL/26-27/02226","salesPrice":362.5},{"date":"2026-09-09","vendor":"PAPELTON","customer":"NYKAA FASHION LIMITED - MAHARASHTRA","product":"COURIER BAG_NYKAA.COM BIG_W389-G120-H457-F50","qty":50000,"billAmt":295000,"purchaseRate":5.9,"invoice":"OTPL/26-27/02225","salesPrice":5.9},{"date":"2026-09-09","vendor":"Reliable","customer":"GLOBAL SS BEAUTY BRANDS LIMITED- MAHARASHTRA","product":"Shoppers Stop-40x30x20 cm","qty":270,"billAmt":20250,"purchaseRate":75,"invoice":"OTPL/26-27/02237","salesPrice":95}];
+/* =========================================================
+   Officedeck Technologies Pvt Ltd — Daily Purchase Manifest
+   dashboard logic
+   ========================================================= */
+
+const CONFIG = {
+  // Paste your published Google Sheet CSV URL here to go live.
+  // File > Share > Publish to web > select the "Data" sheet > CSV.
+  sheetCsvUrl: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRu3k2MkjUMHNKMzaQOk0akzXMw2KMfujMcWxFXfYvbdPlPI9Bq2aW9UyB8MdbO3d2ETtVa381UYKLw/pub?gid=1816165792&single=true&output=csv",
+  refreshIntervalMs: 5 * 60 * 1000, // 5 minutes
+  // "Yesterday" relative to the viewer's local clock. Falls back to the
+  // latest date present in the data if that date has no rows.
+  gstRateForApEstimate: 0.18
+};
+
+const CATEGORY_COLORS = {
+  "Bubble": "#64D2FF",
+  "Bubble Mailer": "#40C8E0",
+  "Corrugated Box": "#FF9F0A",
+  "Fill8": "#30D158",
+  "Fitment": "#AC8E68",
+  "Gift Box Bag": "#FF375F",
+  "Handle Bag": "#5E5CE6",
+  "Hexcush": "#BF5AF2",
+  "LDPE Roll": "#FFD60A",
+  "Paper Bag": "#C99A5B",
+  "Poly bag": "#0A84FF",
+  "Shredded Paper": "#8E8E93",
+  "Tape": "#FF453A",
+  "Miscellaneous": "#B0B0B6"
+};
+const CATEGORY_ORDER = ["Bubble", "Bubble Mailer", "Corrugated Box", "Fill8", "Fitment", "Gift Box Bag", "Handle Bag", "Hexcush", "LDPE Roll", "Paper Bag", "Poly bag", "Shredded Paper", "Tape", "Miscellaneous"];
+
+let RAW = [];          // all rows, normalized
+let state = {
+  dateFilter: "yesterday", // "yesterday" | "mtd" | "all"
+  categories: new Set(),   // empty = all
+  vendors: [],              // empty = all
+  search: "",
+  productSort: { key: "totalMargin", dir: "desc" },
+  vendorSort: { key: "totalPurchase", dir: "desc" },
+  apSort: { key: "totalPayable", dir: "desc" },
+  productSearch: ""
+};
+// Sidebar filter selections the user is currently making, applied to `state`
+// (and the data) only when the "OK" button is clicked. Date/category/vendor/
+// search live here until confirmed; everything else re-renders instantly.
+let pending = {
+  dateFilter: state.dateFilter,
+  categories: new Set(state.categories),
+  vendors: [...state.vendors],
+  search: state.search
+};
+let charts = { donut: null, trend: null };
+
+/* ---------------- categorization ---------------- */
+function categorize(productName) {
+  const p = (productName || "").toUpperCase();
+  if (p.includes("BUBBLE MAILER")) return "Bubble Mailer";
+  if (p.includes("BUBBLE")) return "Bubble";
+  if (p.includes("HEXCUSH")) return "Hexcush";
+  if (p.includes("FILL8")) return "Fill8";
+  if (p.includes("LDPE")) return "LDPE Roll";
+  if (p.includes("TAPE")) return "Tape";
+  if (p.includes("SHREDDED PAPER")) return "Shredded Paper";
+  if (p.includes("FITMENT")) return "Fitment";
+  if (p.includes("BOX TYPE BAG")) return "Gift Box Bag";
+  if (p.includes("HANDLE BAG")) return "Handle Bag";
+  if (p.includes("PAPER BAG")) return "Paper Bag";
+  if (p.includes("COURIER BAG") || p.includes("POLY BAG")) return "Poly bag";
+  if (p.includes("CORR BOX") || p.includes("BOX") || p.includes("SHOPPERS STOP")) return "Corrugated Box";
+  return "Miscellaneous";
+}
+
+/* ---------------- data loading ---------------- */
+function normalizeRow(r) {
+  const qty = toNum(r.qty ?? r.Qty);
+  const billAmt = toNum(r.billAmt ?? r["Bill Amt (Tax Exclusive)"]);
+  const purchaseRate = toNum(r.purchaseRate ?? r["PURCHASE RATE"]);
+  const salesPrice = toNum(r.salesPrice ?? r["sales price"]);
+  const product = (r.product ?? r["PRODUCT NAME"] ?? "").toString().trim();
+  return {
+    date: (r.date ?? r.Date ?? "").toString().trim(),
+    vendor: (r.vendor ?? r["Vendor  name"] ?? r["Vendor name"] ?? "").toString().trim(),
+    customer: (r.customer ?? r["Customer Name"] ?? "").toString().trim(),
+    product,
+    qty,
+    billAmt,
+    purchaseRate,
+    invoice: (r.invoice ?? r["CUSTOMER INVOICE NO"] ?? "").toString().trim(),
+    salesPrice,
+    category: categorize(product),
+    marginUnit: (purchaseRate != null && salesPrice != null) ? (salesPrice - purchaseRate) : null,
+    paymentStatus: (r["Payment Status"] ?? r.paymentStatus ?? "").toString().trim() || null,
+    dueDate: (r["Due Date"] ?? r.dueDate ?? "").toString().trim() || null
+  };
+}
+function toNum(v) {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number") return isNaN(v) ? null : v;
+  const s = String(v).replace(/,/g, "").trim();
+  if (s === "" || s === "#N/A" || s.toUpperCase() === "N/A") return null;
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+function parseSheetDate(raw) {
+  // handles yyyy-mm-dd, dd/mm/yyyy, or Excel-serial-like strings from CSV export
+  if (!raw) return "";
+  const s = raw.toString().trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,"0")}-${dmy[1].padStart(2,"0")}`;
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  }
+  return s;
+}
+
+async function loadFromSheet() {
+  if (!CONFIG.sheetCsvUrl) return null;
+  const res = await fetch(CONFIG.sheetCsvUrl, { cache: "no-store" });
+  if (!res.ok) throw new Error("Sheet fetch failed: " + res.status);
+  const text = await res.text();
+  const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+  return parsed.data.map(row => {
+    const mapped = normalizeRow(row);
+    mapped.date = parseSheetDate(mapped.date);
+    return mapped;
+  }).filter(r => r.date && r.product);
+}
+
+function loadEmbedded() {
+  return EMBEDDED_DATA.map(r => normalizeRow(r)).filter(r => r.date && r.product);
+}
+
+async function refreshData(isManual) {
+  const btn = document.getElementById("refreshBtn");
+  const icon = document.getElementById("refreshIcon");
+  icon.classList.add("spin");
+  if (isManual) btn.disabled = true;
+  try {
+    const sheetRows = await loadFromSheet();
+    if (sheetRows && sheetRows.length) {
+      RAW = sheetRows;
+      setSyncStatus(true);
+    } else if (!RAW.length) {
+      RAW = loadEmbedded();
+      setSyncStatus(false);
+    }
+  } catch (e) {
+    console.warn("Live sheet fetch failed, using existing data.", e);
+    if (!RAW.length) { RAW = loadEmbedded(); }
+    setSyncStatus(false, true);
+  }
+  populateVendorOptions();
+  populateDateChips();
+  renderAll();
+  icon.classList.remove("spin");
+  if (isManual) btn.disabled = false;
+  document.getElementById("syncTime").textContent =
+    "last synced " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function setSyncStatus(isLive, errored) {
+  const dot = document.getElementById("syncDot");
+  const label = document.getElementById("syncStatus");
+  if (isLive) {
+    dot.classList.remove("stale");
+    label.textContent = "live · Google Sheet";
+  } else if (errored) {
+    dot.classList.add("stale");
+    label.textContent = "sync failed · showing last data";
+  } else {
+    dot.classList.add("stale");
+    label.textContent = CONFIG.sheetCsvUrl ? "connecting…" : "static sample data";
+  }
+}
+
+/* ---------------- date helpers ---------------- */
+function allDatesSorted() {
+  return [...new Set(RAW.map(r => r.date))].sort();
+}
+function latestDate() {
+  const d = allDatesSorted();
+  return d.length ? d[d.length - 1] : null;
+}
+function yesterdayIso() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function resolveYesterday() {
+  const y = yesterdayIso();
+  const dates = new Set(RAW.map(r => r.date));
+  if (dates.has(y)) return y;
+  return latestDate();
+}
+
+/* ---------------- filtering ---------------- */
+function filteredRows() {
+  let rows = RAW;
+  if (state.dateFilter === "yesterday") {
+    const y = resolveYesterday();
+    rows = rows.filter(r => r.date === y);
+  } else if (state.dateFilter === "mtd") {
+    // all loaded dates (month to date)
+  }
+  if (state.categories.size) {
+    rows = rows.filter(r => state.categories.has(r.category));
+  }
+  if (state.vendors.length) {
+    rows = rows.filter(r => state.vendors.includes(r.vendor));
+  }
+  if (state.search.trim()) {
+    const q = state.search.trim().toUpperCase();
+    rows = rows.filter(r =>
+      r.product.toUpperCase().includes(q) ||
+      r.customer.toUpperCase().includes(q) ||
+      r.vendor.toUpperCase().includes(q) ||
+      r.invoice.toUpperCase().includes(q)
+    );
+  }
+  return rows;
+}
+
+/* ---------------- formatting ---------------- */
+const inr = (n) => n == null ? "—" : "₹" + Math.round(n).toLocaleString("en-IN");
+const inr2 = (n) => n == null ? "—" : "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+const num0 = (n) => n == null ? "—" : Math.round(n).toLocaleString("en-IN");
+const pct1 = (n) => n == null ? "—" : n.toFixed(1) + "%";
+
+/* ---------------- KPI row ---------------- */
+function renderKpis() {
+  const rows = filteredRows();
+  const totalPurchase = sumBy(rows, "billAmt");
+  const totalQty = sumBy(rows, "qty");
+  const invoiceCount = new Set(rows.map(r => r.invoice)).size;
+  const marginRows = rows.filter(r => r.marginUnit != null && r.qty != null);
+  const totalMargin = marginRows.reduce((s, r) => s + r.marginUnit * r.qty, 0);
+  const avgMarginPct = (() => {
+    const validRate = rows.filter(r => r.marginUnit != null && r.purchaseRate);
+    if (!validRate.length) return null;
+    const weightedNum = validRate.reduce((s, r) => s + (r.marginUnit / r.purchaseRate) * (r.qty || 0), 0);
+    const weightedDen = validRate.reduce((s, r) => s + (r.qty || 0), 0);
+    return weightedDen ? (weightedNum / weightedDen) * 100 : null;
+  })();
+  const mtdRows = RAW.filter(r => state.categories.size ? state.categories.has(r.category) : true)
+                      .filter(r => state.vendors.length ? state.vendors.includes(r.vendor) : true);
+  const mtdTotal = sumBy(mtdRows, "billAmt");
+
+  const label = state.dateFilter === "yesterday" ? (resolveYesterday() || "—") : "selected range";
+  document.getElementById("subtitleLine").textContent =
+    `Packaging procurement & accounts payable · reporting ${state.dateFilter === "yesterday" ? "for " + label : "month to date"}`;
+
+  const kpis = [
+    { label: `Total purchase — ${state.dateFilter === "yesterday" ? "yesterday" : "selected filter"}`, value: inr(totalPurchase), sub: `${rows.length} line items`, accent: "" },
+    { label: "Total quantity", value: num0(totalQty), sub: "units purchased", accent: "accent-slate" },
+    { label: "Invoices", value: num0(invoiceCount), sub: "distinct bills", accent: "accent-slate" },
+    { label: "Margin generated", value: inr(totalMargin), sub: avgMarginPct != null ? `avg ${pct1(avgMarginPct)} markup` : "—", accent: "accent-teal" },
+    { label: "Month-to-date purchase", value: inr(mtdTotal), sub: "1–9 Sept, filters applied", accent: "accent-amber" }
+  ];
+  document.getElementById("kpiRow").innerHTML = kpis.map(k => `
+    <div class="kpi-tag ${k.accent}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>
+  `).join("");
+}
+function sumBy(rows, field) {
+  return rows.reduce((s, r) => s + (r[field] || 0), 0);
+}
+
+/* ---------------- filter UI ---------------- */
+function populateDateChips() {
+  const el = document.getElementById("dateChips");
+  const y = resolveYesterday();
+  const chips = [
+    { key: "yesterday", label: y ? `Yesterday (${y})` : "Yesterday" },
+    { key: "mtd", label: "Month to date" },
+  ];
+  el.innerHTML = chips.map(c => `<div class="chip ${pending.dateFilter === c.key ? "active" : ""}" data-date="${c.key}">${c.label}</div>`).join("");
+  el.querySelectorAll(".chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      pending.dateFilter = chip.dataset.date;
+      populateDateChips();
+    });
+  });
+}
+function populateCategoryChips() {
+  const el = document.getElementById("catChips");
+  el.innerHTML = CATEGORY_ORDER.map(c => `<div class="chip ${pending.categories.has(c) ? "active" : ""}" data-cat="${c}"><span class="chip-dot" style="background:${CATEGORY_COLORS[c]}"></span>${c}</div>`).join("");
+  el.querySelectorAll(".chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const c = chip.dataset.cat;
+      if (pending.categories.has(c)) pending.categories.delete(c);
+      else pending.categories.add(c);
+      populateCategoryChips();
+    });
+  });
+}
+function populateVendorOptions() {
+  const el = document.getElementById("vendorSelect");
+  const vendors = [...new Set(RAW.map(r => r.vendor))].filter(Boolean).sort();
+  el.innerHTML = vendors.map(v => `<option value="${escapeHtml(v)}" ${pending.vendors.includes(v) ? "selected" : ""}>${escapeHtml(v)}</option>`).join("");
+  el.size = Math.min(6, Math.max(3, vendors.length));
+  el.onchange = () => {
+    pending.vendors = [...el.selectedOptions].map(o => o.value);
+  };
+}
+function applyPendingFilters() {
+  state.dateFilter = pending.dateFilter;
+  state.categories = new Set(pending.categories);
+  state.vendors = [...pending.vendors];
+  state.search = pending.search;
+  renderAll();
+}
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+/* ---------------- charts ---------------- */
+function renderCharts() {
+  const rows = filteredRows();
+  const byCat = {};
+  CATEGORY_ORDER.forEach(c => byCat[c] = 0);
+  rows.forEach(r => { byCat[r.category] = (byCat[r.category] || 0) + (r.billAmt || 0); });
+  const total = Object.values(byCat).reduce((a, b) => a + b, 0);
+
+  document.getElementById("mixHint").textContent =
+    state.dateFilter === "yesterday" ? `Yesterday (${resolveYesterday() || "—"}), by purchase value` : "Month to date, by purchase value";
+
+  const ctx = document.getElementById("catDonut").getContext("2d");
+  const labels = CATEGORY_ORDER.filter(c => byCat[c] > 0);
+  const values = labels.map(c => byCat[c]);
+  const colors = labels.map(c => CATEGORY_COLORS[c]);
+  if (charts.donut) charts.donut.destroy();
+  charts.donut = new Chart(ctx, {
+    type: "doughnut",
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: "rgba(255,255,255,0.85)", borderWidth: 3 }] },
+    options: {
+      maintainAspectRatio: false,
+      cutout: "62%",
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: (c) => ` ${c.label}: ${inr(c.raw)} (${((c.raw / total) * 100).toFixed(1)}%)` }
+        }
+      }
+    }
+  });
+  document.getElementById("catLegend").innerHTML = labels.map((c, i) => `
+    <div class="legend-item">
+      <div class="l-left"><span class="legend-swatch" style="background:${colors[i]}"></span>${c}</div>
+      <div class="l-val">${inr(values[i])} · ${((values[i] / total) * 100).toFixed(1)}%</div>
+    </div>
+  `).join("") || `<div class="legend-item"><div class="l-left">No purchases in this range</div></div>`;
+
+  // daily trend, stacked by category, across all loaded dates (respects vendor/category/search filters, ignores date chip)
+  let trendRows = RAW;
+  if (state.categories.size) trendRows = trendRows.filter(r => state.categories.has(r.category));
+  if (state.vendors.length) trendRows = trendRows.filter(r => state.vendors.includes(r.vendor));
+  if (state.search.trim()) {
+    const q = state.search.trim().toUpperCase();
+    trendRows = trendRows.filter(r => r.product.toUpperCase().includes(q) || r.customer.toUpperCase().includes(q) || r.vendor.toUpperCase().includes(q));
+  }
+  const dates = allDatesSorted();
+  const byDateCat = {};
+  dates.forEach(d => byDateCat[d] = Object.fromEntries(CATEGORY_ORDER.map(c => [c, 0])));
+  trendRows.forEach(r => { if (byDateCat[r.date]) byDateCat[r.date][r.category] += (r.billAmt || 0); });
+  const trendCtx = document.getElementById("trendChart").getContext("2d");
+  if (charts.trend) charts.trend.destroy();
+  charts.trend = new Chart(trendCtx, {
+    type: "bar",
+    data: {
+      labels: dates,
+      datasets: CATEGORY_ORDER.map(c => ({
+        label: c,
+        data: dates.map(d => byDateCat[d][c]),
+        backgroundColor: CATEGORY_COLORS[c],
+        stack: "s"
+      }))
+    },
+    options: {
+      maintainAspectRatio: false,
+      scales: {
+        x: { stacked: true, ticks: { color: "#636366", font: { size: 11 } }, grid: { color: "rgba(60,60,67,0.08)" } },
+        y: { stacked: true, ticks: { color: "#636366", font: { size: 11 }, callback: v => "₹" + (v / 1000) + "k" }, grid: { color: "rgba(60,60,67,0.08)" } }
+      },
+      plugins: {
+        legend: { position: "bottom", labels: { color: "#636366", boxWidth: 10, font: { size: 11 } } },
+        tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${inr(c.raw)}` } }
+      }
+    }
+  });
+}
+
+/* ---------------- product margin table ---------------- */
+function computeProductAgg() {
+  const rows = filteredRows();
+  const map = new Map();
+  rows.forEach(r => {
+    if (!map.has(r.product)) {
+      map.set(r.product, { product: r.product, category: r.category, qty: 0, purchaseSum: 0, purchaseWeight: 0, saleSum: 0, saleWeight: 0, totalMargin: 0, marginWeight: 0 });
+    }
+    const a = map.get(r.product);
+    a.qty += r.qty || 0;
+    if (r.purchaseRate != null) { a.purchaseSum += r.purchaseRate * (r.qty || 0); a.purchaseWeight += (r.qty || 0); }
+    if (r.salesPrice != null) { a.saleSum += r.salesPrice * (r.qty || 0); a.saleWeight += (r.qty || 0); }
+    if (r.marginUnit != null && r.qty != null) { a.totalMargin += r.marginUnit * r.qty; }
+  });
+  const out = [...map.values()].map(a => {
+    const avgPurchase = a.purchaseWeight ? a.purchaseSum / a.purchaseWeight : null;
+    const avgSale = a.saleWeight ? a.saleSum / a.saleWeight : null;
+    const marginUnit = (avgPurchase != null && avgSale != null) ? avgSale - avgPurchase : null;
+    const marginPct = (marginUnit != null && avgSale) ? (marginUnit / avgSale) * 100 : null;
+    return { ...a, avgPurchase, avgSale, marginUnit, marginPct };
+  });
+  if (state.productSearch.trim()) {
+    const q = state.productSearch.trim().toUpperCase();
+    return out.filter(r => r.product.toUpperCase().includes(q) || r.category.toUpperCase().includes(q));
+  }
+  return out;
+}
+function renderProductTable() {
+  let rows = computeProductAgg();
+  const { key, dir } = state.productSort;
+  rows = sortRows(rows, key, dir);
+  document.getElementById("productBody").innerHTML = rows.map(r => `
+    <tr>
+      <td class="name">${escapeHtml(r.product)}</td>
+      <td><span class="tag-cat" style="background:${CATEGORY_COLORS[r.category]}22;color:${CATEGORY_COLORS[r.category]}">${r.category}</span></td>
+      <td class="num">${num0(r.qty)}</td>
+      <td class="num">${inr2(r.avgPurchase)}</td>
+      <td class="num">${inr2(r.avgSale)}</td>
+      <td class="num ${r.marginUnit != null ? (r.marginUnit >= 0 ? "pos" : "neg") : ""}">${r.marginUnit != null ? inr2(r.marginUnit) : "—"}</td>
+      <td class="num ${r.marginPct != null ? (r.marginPct >= 0 ? "pos" : "neg") : ""}">${pct1(r.marginPct)}</td>
+      <td class="num">${inr(r.totalMargin)}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="8" style="color:var(--text-dim);">No products match the current filters.</td></tr>`;
+  document.getElementById("productCount").textContent = `${rows.length} product${rows.length === 1 ? "" : "s"}`;
+  markSortedHeader("productTable", key, dir);
+}
+
+/* ---------------- vendor performance table ---------------- */
+function computeVendorAgg() {
+  let rows = RAW;
+  if (state.categories.size) rows = rows.filter(r => state.categories.has(r.category));
+  if (state.vendors.length) rows = rows.filter(r => state.vendors.includes(r.vendor));
+  const map = new Map();
+  rows.forEach(r => {
+    if (!map.has(r.vendor)) map.set(r.vendor, { vendor: r.vendor, invoices: new Set(), qty: 0, totalPurchase: 0, rateSum: 0, rateWeight: 0, marginPctSum: 0, marginPctWeight: 0 });
+    const v = map.get(r.vendor);
+    if (r.invoice) v.invoices.add(r.invoice);
+    v.qty += r.qty || 0;
+    v.totalPurchase += r.billAmt || 0;
+    if (r.purchaseRate != null) { v.rateSum += r.purchaseRate * (r.qty || 0); v.rateWeight += (r.qty || 0); }
+    if (r.marginUnit != null && r.purchaseRate) { v.marginPctSum += (r.marginUnit / r.purchaseRate) * 100 * (r.qty || 0); v.marginPctWeight += (r.qty || 0); }
+  });
+  const grandTotal = [...map.values()].reduce((s, v) => s + v.totalPurchase, 0);
+  return [...map.values()].map(v => ({
+    vendor: v.vendor,
+    invoices: v.invoices.size,
+    qty: v.qty,
+    totalPurchase: v.totalPurchase,
+    avgRate: v.rateWeight ? v.rateSum / v.rateWeight : null,
+    avgMarginPct: v.marginPctWeight ? v.marginPctSum / v.marginPctWeight : null,
+    share: grandTotal ? (v.totalPurchase / grandTotal) * 100 : 0
+  })).filter(v => v.vendor);
+}
+function renderVendorTable() {
+  let rows = computeVendorAgg();
+  const { key, dir } = state.vendorSort;
+  rows = sortRows(rows, key, dir);
+  document.getElementById("vendorBody").innerHTML = rows.map(v => `
+    <tr>
+      <td class="name">${escapeHtml(v.vendor)}</td>
+      <td class="num">${num0(v.invoices)}</td>
+      <td class="num">${num0(v.qty)}</td>
+      <td class="num">${inr(v.totalPurchase)}</td>
+      <td class="num">${inr2(v.avgRate)}</td>
+      <td class="num ${v.avgMarginPct != null ? (v.avgMarginPct >= 0 ? "pos" : "neg") : ""}">${pct1(v.avgMarginPct)}</td>
+      <td class="num">${v.share.toFixed(1)}%</td>
+    </tr>
+  `).join("") || `<tr><td colspan="7" style="color:var(--text-dim);">No vendors match the current filters.</td></tr>`;
+  document.getElementById("vendorCount").textContent = `${rows.length} vendor${rows.length === 1 ? "" : "s"}, month to date`;
+  markSortedHeader("vendorTable", key, dir);
+}
+
+/* ---------------- accounts payable table ---------------- */
+function computeApAgg() {
+  let rows = RAW;
+  if (state.categories.size) rows = rows.filter(r => state.categories.has(r.category));
+  if (state.vendors.length) rows = rows.filter(r => state.vendors.includes(r.vendor));
+  const hasStatusCol = rows.some(r => r.paymentStatus);
+  if (hasStatusCol) rows = rows.filter(r => (r.paymentStatus || "").toUpperCase() !== "PAID");
+  const map = new Map();
+  rows.forEach(r => {
+    if (!map.has(r.vendor)) map.set(r.vendor, { vendor: r.vendor, invoices: new Set(), totalPayable: 0 });
+    const v = map.get(r.vendor);
+    if (r.invoice) v.invoices.add(r.invoice);
+    v.totalPayable += r.billAmt || 0;
+  });
+  return { hasStatusCol, list: [...map.values()].map(v => ({
+    vendor: v.vendor,
+    invoices: v.invoices.size,
+    totalPayable: v.totalPayable,
+    estTax: v.totalPayable * CONFIG.gstRateForApEstimate,
+    estTotal: v.totalPayable * (1 + CONFIG.gstRateForApEstimate)
+  })).filter(v => v.vendor) };
+}
+function renderApTable() {
+  const { hasStatusCol, list } = computeApAgg();
+  let rows = list;
+  const { key, dir } = state.apSort;
+  rows = sortRows(rows, key, dir);
+  document.getElementById("apBody").innerHTML = rows.map(v => `
+    <tr>
+      <td class="name">${escapeHtml(v.vendor)}</td>
+      <td class="num">${num0(v.invoices)}</td>
+      <td class="num">${inr(v.totalPayable)}</td>
+      <td class="num">${inr(v.estTax)}</td>
+      <td class="num">${inr(v.estTotal)}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="5" style="color:var(--text-dim);">No payable balances match the current filters.</td></tr>`;
+  const grand = rows.reduce((s, v) => s + v.totalPayable, 0);
+  document.getElementById("apHint").textContent = `${hasStatusCol ? "Open (unpaid) invoices" : "All invoices, month to date"} · ${inr(grand)} total`;
+  const note = document.getElementById("apEmptyNote");
+  if (!hasStatusCol) {
+    note.style.display = "block";
+    note.innerHTML = `This view totals <b>Bill Amt (Tax Exclusive)</b> per vendor for the month — it does not yet know what's been paid. Add a <code>Payment Status</code> column (Paid / Pending) and a <code>Due Date</code> column to your Google Sheet to filter this to true outstanding payables and enable aging.`;
+  } else {
+    note.style.display = "none";
+  }
+  markSortedHeader("apTable", key, dir);
+}
+
+/* ---------------- sorting ---------------- */
+function sortRows(rows, key, dir) {
+  const mul = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = a[key], bv = b[key];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === "string") return av.localeCompare(bv) * mul;
+    return (av - bv) * mul;
+  });
+}
+function markSortedHeader(tableId, key, dir) {
+  const table = document.getElementById(tableId);
+  table.querySelectorAll("thead th").forEach(th => {
+    th.classList.remove("sorted");
+    const base = th.textContent.replace(/[\u25B2\u25BC]/g, "").trim();
+    th.innerHTML = base;
+    if (th.dataset.key === key) {
+      th.classList.add("sorted");
+      th.innerHTML = base + `<span class="arrow">${dir === "asc" ? "\u25B2" : "\u25BC"}</span>`;
+    }
+  });
+}
+function wireSortableHeaders(tableId, sortStateKey, defaultDir) {
+  document.querySelectorAll(`#${tableId} thead th`).forEach(th => {
+    th.addEventListener("click", () => {
+      const key = th.dataset.key;
+      const cur = state[sortStateKey];
+      if (cur.key === key) cur.dir = cur.dir === "asc" ? "desc" : "asc";
+      else { cur.key = key; cur.dir = defaultDir || "desc"; }
+      renderAll();
+    });
+  });
+}
+
+/* ---------------- master render ---------------- */
+function renderAll() {
+  renderKpis();
+  renderCharts();
+  renderProductTable();
+  renderVendorTable();
+  renderApTable();
+}
+
+/* ---------------- wire up ---------------- */
+document.getElementById("refreshBtn").addEventListener("click", () => refreshData(true));
+document.getElementById("searchInput").addEventListener("input", (e) => { pending.search = e.target.value; });
+document.getElementById("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") applyPendingFilters(); });
+document.getElementById("productSearch").addEventListener("input", (e) => { state.productSearch = e.target.value; renderProductTable(); });
+document.getElementById("applyFilters").addEventListener("click", applyPendingFilters);
+document.getElementById("clearFilters").addEventListener("click", () => {
+  pending.dateFilter = "yesterday";
+  pending.categories = new Set();
+  pending.vendors = [];
+  pending.search = "";
+  state.dateFilter = "yesterday";
+  state.categories = new Set();
+  state.vendors = [];
+  state.search = "";
+  document.getElementById("searchInput").value = "";
+  document.getElementById("vendorSelect").selectedIndex = -1;
+  populateDateChips();
+  populateCategoryChips();
+  renderAll();
+});
+wireSortableHeaders("productTable", "productSort");
+wireSortableHeaders("vendorTable", "vendorSort");
+wireSortableHeaders("apTable", "apSort");
+populateCategoryChips();
+
+(async function init() {
+  RAW = loadEmbedded();
+  setSyncStatus(false);
+  populateVendorOptions();
+  populateDateChips();
+  renderAll();
+  document.getElementById("syncTime").textContent = "last synced " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  await refreshData(false);
+  setInterval(() => refreshData(false), CONFIG.refreshIntervalMs);
+})();
+
+</script>
+</body>
+</html>
